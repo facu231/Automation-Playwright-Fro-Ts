@@ -9,7 +9,7 @@ Framework profesional de automatizacion E2E frontend con Playwright, TypeScript,
 - Cucumber / Gherkin
 - BDD
 - Page Object Model
-- Node.js
+- Node.js 24 recomendado, minimo 20.19
 - Zod para validacion de configuracion
 - ESLint, Prettier y Vitest
 - Allure Report
