@@ -1,6 +1,7 @@
 import { After, AfterAll, AfterStep, Before, BeforeAll, Status } from '@cucumber/cucumber';
+import type { ITestCaseHookParameter, ITestStepHookParameter } from '@cucumber/cucumber';
 import { chromium, firefox, webkit } from 'playwright';
-import type { Browser, BrowserType } from 'playwright';
+import type { Browser, BrowserType, Page } from 'playwright';
 import { ConfigManager } from '../core/ConfigManager';
 import { PathManager } from '../core/PathManager';
 import type { CustomWorld } from '../support/world';
@@ -12,7 +13,6 @@ BeforeAll(async function () {
   const browserType: BrowserType = { chromium, firefox, webkit }[config.browser];
 
   PathManager.ensureBaseFolders();
-
   browser = await browserType.launch({
     headless: config.headless,
     slowMo: config.slowMo,
@@ -20,7 +20,7 @@ BeforeAll(async function () {
   });
 });
 
-Before(async function (this: CustomWorld, scenario: any) {
+Before(async function (this: CustomWorld, scenario: ITestCaseHookParameter) {
   const config = ConfigManager.load();
   const scenarioName = scenario.pickle.name;
   const videoDir = config.video ? PathManager.forScenario('videos', scenarioName) : undefined;
@@ -40,10 +40,11 @@ Before(async function (this: CustomWorld, scenario: any) {
   page.setDefaultNavigationTimeout(config.navigationTimeout);
 
   this.init(browser, context, page, scenarioName);
+  registerDiagnostics(this, page);
   this.reporterManager?.info(`Scenario started: ${scenarioName}`);
 });
 
-AfterStep(async function (this: CustomWorld, hookParameter: any) {
+AfterStep(async function (this: CustomWorld, hookParameter: ITestStepHookParameter) {
   if (!this.page || !this.screenshotManager) {
     return;
   }
@@ -63,7 +64,7 @@ AfterStep(async function (this: CustomWorld, hookParameter: any) {
   await this.attach(evidence.buffer, 'image/png');
 });
 
-After(async function (this: CustomWorld, scenario: any) {
+After(async function (this: CustomWorld, scenario: ITestCaseHookParameter) {
   const status = scenario.result?.status ?? 'UNKNOWN';
   const failed = status === Status.FAILED;
 
@@ -76,7 +77,11 @@ After(async function (this: CustomWorld, scenario: any) {
   }
 
   if (this.context && this.config.trace) {
-    const tracePath = PathManager.scenarioFile('traces', this.scenarioName, `${PathManager.timestamp()}-trace.zip`);
+    const tracePath = PathManager.scenarioFile(
+      'traces',
+      this.scenarioName,
+      `${PathManager.timestamp()}-trace.zip`
+    );
     await this.context.tracing.stop({ path: tracePath });
     this.reporterManager?.addEvidence({
       type: 'trace',
@@ -84,6 +89,7 @@ After(async function (this: CustomWorld, scenario: any) {
       label: 'Playwright trace',
       timestamp: PathManager.timestamp()
     });
+    await this.attach(`Playwright trace: ${tracePath}`, 'text/plain');
   }
 
   const video = this.page?.video();
@@ -100,6 +106,7 @@ After(async function (this: CustomWorld, scenario: any) {
       label: 'Scenario video',
       timestamp: PathManager.timestamp()
     });
+    await this.attach(`Scenario video: ${videoPath}`, 'text/plain');
   }
 
   this.reporterManager?.info(`Scenario finished with status: ${status}`);
@@ -111,3 +118,26 @@ AfterAll(async function () {
     await browser.close();
   }
 });
+
+function registerDiagnostics(world: CustomWorld, page: Page): void {
+  page.on('console', (message) => {
+    world.reporterManager?.info(`[console:${message.type()}] ${message.text()}`);
+  });
+
+  page.on('pageerror', (error) => {
+    world.reporterManager?.error(`[pageerror] ${error.message}`);
+  });
+
+  page.on('requestfailed', (request) => {
+    const failure = request.failure();
+    world.reporterManager?.warn(
+      `[requestfailed] ${request.method()} ${request.url()} ${failure?.errorText ?? 'unknown error'}`
+    );
+  });
+
+  page.on('response', (response) => {
+    if (response.status() >= 400) {
+      world.reporterManager?.warn(`[response:${response.status()}] ${response.url()}`);
+    }
+  });
+}

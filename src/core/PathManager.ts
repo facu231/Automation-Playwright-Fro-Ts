@@ -18,6 +18,8 @@ export class PathManager {
     this.artifactRoots.forEach((folder) => this.ensureDir(this.resolve(folder)));
     this.ensureDir(this.resolve('reports', 'cucumber'));
     this.ensureDir(this.resolve('reports', 'html'));
+    this.ensureDir(this.resolve('reports', 'allure-results'));
+    this.ensureDir(this.resolve('reports', 'allure-report'));
   }
 
   static ensureDir(directory: string): string {
@@ -53,12 +55,14 @@ export class PathManager {
   }
 
   static sanitize(value: string): string {
-    return value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/gi, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 120) || 'unnamed';
+    return (
+      value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/gi, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 120) || 'unnamed'
+    );
   }
 
   static dateStamp(date = new Date()): string {

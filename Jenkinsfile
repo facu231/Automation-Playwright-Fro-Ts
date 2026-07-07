@@ -6,6 +6,9 @@ pipeline {
     HEADLESS = 'true'
     TRACE = 'true'
     VIDEO = 'true'
+    RETRY = '1'
+    RETRY_TAG_FILTER = '@flaky'
+    CUCUMBER_TAGS = '@smoke and not @wip'
   }
 
   stages {
@@ -17,25 +20,44 @@ pipeline {
 
     stage('Install dependencies') {
       steps {
-        bat 'npm install'
+        bat 'corepack enable'
+        bat 'pnpm install --frozen-lockfile'
       }
     }
 
-    stage('Install browsers') {
+    stage('Validate framework') {
       steps {
-        bat 'npx playwright install'
+        bat 'pnpm run validate'
       }
     }
 
-    stage('Run tests') {
-      steps {
-        bat 'npm test'
+    stage('Run browser matrix') {
+      matrix {
+        axes {
+          axis {
+            name 'BROWSER'
+            values 'chromium', 'firefox', 'webkit'
+          }
+        }
+        stages {
+          stage('Install browser') {
+            steps {
+              bat 'pnpm exec playwright install %BROWSER%'
+            }
+          }
+
+          stage('Run tests') {
+            steps {
+              bat 'pnpm run test:ci'
+            }
+          }
+        }
       }
     }
 
     stage('Publish reports') {
       steps {
-        bat 'npm run report'
+        bat 'pnpm run report'
         publishHTML([
           allowMissing: true,
           alwaysLinkToLastBuild: true,
@@ -43,6 +65,14 @@ pipeline {
           reportDir: 'reports/html',
           reportFiles: 'index.html',
           reportName: 'E2E Cucumber Report'
+        ])
+        publishHTML([
+          allowMissing: true,
+          alwaysLinkToLastBuild: true,
+          keepAll: true,
+          reportDir: 'reports/allure-report',
+          reportFiles: 'index.html',
+          reportName: 'E2E Allure Report'
         ])
       }
     }

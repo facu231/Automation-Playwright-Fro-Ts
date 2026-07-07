@@ -10,10 +10,14 @@ export class LoginPage extends BasePage {
 
   constructor(page: Page, config?: EnvironmentConfig) {
     super(page, config);
-    this.usernameInput = page.locator('[data-test="username"], #user-name, #username, input[name="username"]');
+    this.usernameInput = page.locator(
+      '[data-test="username"], #user-name, #username, input[name="username"]'
+    );
     this.passwordInput = page.locator('[data-test="password"], #password, input[type="password"]');
     this.loginButton = page.locator('[data-test="login-button"], #login-button, button[type="submit"]');
-    this.dashboardMarker = page.locator('[data-test="inventory-container"], [data-testid="dashboard"], #dashboard, main');
+    this.dashboardMarker = page.locator(
+      '[data-test="inventory-container"], [data-testid="dashboard"], #dashboard, main'
+    );
   }
 
   async navigateToLogin(): Promise<void> {
@@ -32,7 +36,10 @@ export class LoginPage extends BasePage {
     await this.actions.click(this.loginButton);
   }
 
-  async login(username = this.config.credentials.username, password = this.config.credentials.password): Promise<void> {
+  async login(
+    username = this.config.credentials.username,
+    password = this.config.credentials.password
+  ): Promise<void> {
     await this.enterUsername(username);
     await this.enterPassword(password);
     await this.submitLogin();

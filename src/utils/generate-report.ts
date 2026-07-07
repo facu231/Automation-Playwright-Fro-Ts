@@ -1,8 +1,7 @@
 import { existsSync } from 'fs';
+import reporter from 'multiple-cucumber-html-reporter';
 import { ConfigManager } from '../core/ConfigManager';
 import { PathManager } from '../core/PathManager';
-
-const reporter = require('multiple-cucumber-html-reporter');
 
 PathManager.ensureBaseFolders();
 

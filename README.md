@@ -10,16 +10,23 @@ Framework profesional de automatizacion E2E frontend con Playwright, TypeScript,
 - BDD
 - Page Object Model
 - Node.js
+- Zod para validacion de configuracion
+- ESLint, Prettier y Vitest
+- Allure Report
 - CI/CD con GitHub Actions, GitLab CI y Jenkins
+- Docker / Dev Container
 
 ## Instalacion
 
 ```bash
-npm install
-npx playwright install
+corepack enable
+pnpm install
+pnpm exec playwright install
 ```
 
-Opcionalmente copia `.env.example` a `.env` y ajusta las variables.
+Tambien funciona con `npm install` si el equipo prefiere npm. Para CI se recomienda `pnpm` porque el repositorio incluye `pnpm-lock.yaml`.
+
+Opcionalmente copia `.env.example` a `.env` y ajusta las variables. La configuracion se valida con Zod antes de iniciar el browser.
 
 ## Estructura
 
@@ -40,6 +47,7 @@ reports/      Reportes generados
 screenshots/  Evidencias PNG
 videos/       Videos de ejecucion
 traces/       Traces de Playwright
+Dockerfile    Imagen reproducible con browsers de Playwright
 ```
 
 ## Ejecucion
@@ -49,8 +57,13 @@ npm test
 TEST_ENV=qa npm test
 npm run test:dev
 npm run test:qa
+npm run test:smoke
+npm run test:regression
+npm run test:flaky
 npm run test:headed
 npm run test:debug
+npm run test:unit
+npm run validate
 npm run report
 ```
 
@@ -74,14 +87,40 @@ Variables utiles:
 - `VIDEO`: habilita video por escenario
 - `TRACE`: habilita traces de Playwright
 - `TEST_USERNAME` y `TEST_PASSWORD`: credenciales de prueba
+- `CUCUMBER_TAGS`: expresion de tags, por ejemplo `@smoke and not @wip`
+- `RETRY`: cantidad de reintentos
+- `RETRY_TAG_FILTER`: tags que pueden reintentarse, por defecto `@flaky`
+- `PARALLEL`: workers paralelos de Cucumber
+- `ALLURE`: usa `false` para desactivar el formatter Allure
+
+## Tags y retries
+
+El framework viene preparado para suites grandes:
+
+- `@smoke`: camino critico corto
+- `@regression`: suite de regresion
+- `@critical`: escenarios de negocio prioritarios
+- `@flaky`: escenarios con retry controlado
+- `@wip`: escenarios en construccion, excluidos por defecto
+- `@desktop` y `@mobile`: segmentacion por dispositivo
+
+Ejemplos:
+
+```bash
+npm run test:smoke
+cross-env CUCUMBER_TAGS="@regression and not @wip" npm test
+cross-env CUCUMBER_TAGS="@flaky" RETRY=2 RETRY_TAG_FILTER=@flaky npm test
+```
 
 ## Crear una feature
 
 Crea un archivo en `src/features`:
 
 ```gherkin
+@login @smoke @regression @desktop
 Feature: Login de usuario
 
+  @critical
   Scenario: Login exitoso
     Given que el usuario se encuentra en la pantalla de login
     When ingresa usuario "standard_user"
@@ -96,11 +135,11 @@ Crea o extiende un archivo en `src/steps`:
 
 ```typescript
 Given('que el usuario se encuentra en la pantalla de login', async function () {
-  await this.loginPage.navigateToLogin();
+  await this.getLoginPage().navigateToLogin();
 });
 ```
 
-Usa `CustomWorld` para acceder a `page`, `context`, page objects y managers de evidencia.
+Usa `CustomWorld` para acceder a `page`, `context`, Page Factory y managers de evidencia.
 
 ## Crear un Page Object
 
@@ -116,6 +155,20 @@ export class LoginPage extends BasePage {
 
 Centraliza interacciones con `ElementActions`, validaciones con `ElementAssertions` y esperas con `WaitManager`.
 
+Los Page Objects se registran en `PageFactory`, por ejemplo:
+
+```typescript
+this.pages.login();
+```
+
+## Datos de prueba
+
+Usa `DataManager` para centralizar datos en `src/data`:
+
+```typescript
+const user = DataManager.getRecord<TestUser>('users.json', 'validUser');
+```
+
 ## Evidencias y reportes
 
 - Screenshots: `screenshots/<fecha>/<escenario>`
@@ -123,11 +176,21 @@ Centraliza interacciones con `ElementActions`, validaciones con `ElementAssertio
 - Traces: `traces/<fecha>/<escenario>`
 - JSON/HTML Cucumber: `reports/cucumber`
 - Reporte HTML agregado: `reports/html`
+- Allure results: `reports/allure-results`
+- Allure HTML: `reports/allure-report`
+- Logs de consola, errores de pagina y requests fallidas en `scenario-evidence.json`
 
 Para limpiar evidencias:
 
 ```bash
 npm run clean:reports
+```
+
+Para generar Allure:
+
+```bash
+npm run report:allure
+npm run report:allure:open
 ```
 
 ## Highlight
@@ -144,12 +207,48 @@ Incluye ejemplos para:
 
 Los pipelines instalan dependencias, instalan browsers de Playwright, ejecutan tests y publican artifacts.
 
+GitHub Actions y Jenkins ejecutan matriz por browser: `chromium`, `firefox` y `webkit`.
+
+## Docker
+
+Construir imagen:
+
+```bash
+docker build -t framework-fro-ts .
+```
+
+Ejecutar smoke:
+
+```bash
+docker run --rm framework-fro-ts
+```
+
+Ejecutar otro set de tags:
+
+```bash
+docker run --rm -e CUCUMBER_TAGS="@regression and not @wip" framework-fro-ts
+```
+
+## Calidad
+
+Comandos disponibles:
+
+```bash
+npm run typecheck
+npm run lint
+npm run format:check
+npm run test:unit
+npm run validate
+```
+
 ## Buenas practicas
 
 - Un Page Object por pantalla o flujo estable.
 - Steps breves y legibles; la logica vive en pages o servicios del framework.
+- Registrar cada Page Object nuevo en `PageFactory`.
 - Selectores preferentemente por `data-test` o roles accesibles.
-- Datos de prueba fuera de los steps.
+- Datos de prueba fuera de los steps, idealmente mediante `DataManager`.
 - Evidencias habilitadas en CI y configurables localmente.
+- Retries solo para `@flaky` o en CI, no para ocultar defectos reales.
 - No duplicar esperas; usar `WaitManager` o assertions auto-waiting de Playwright.
 - Mantener ambientes en `src/config` y secretos fuera del repositorio.

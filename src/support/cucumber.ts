@@ -1,6 +1,7 @@
 import type { CustomWorld } from './world';
+import type { Page } from 'playwright';
 
-export function requireWorldPage(world: CustomWorld) {
+export function requireWorldPage(world: CustomWorld): Page {
   return world.getPage();
 }
 

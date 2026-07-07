@@ -3,15 +3,29 @@
   "version": "1.0.0",
   "description": "Framework corporativo de automatizacion E2E frontend con Playwright, TypeScript, Cucumber y BDD.",
   "private": true,
+  "packageManager": "pnpm@11.7.0",
   "scripts": {
     "test": "cucumber-js --config cucumber.js",
+    "test:ci": "cross-env CI=true CUCUMBER_TAGS=\"not @wip\" cucumber-js --config cucumber.js --profile ci",
     "test:qa": "cross-env TEST_ENV=qa cucumber-js --config cucumber.js",
     "test:dev": "cross-env TEST_ENV=dev cucumber-js --config cucumber.js",
+    "test:smoke": "cross-env CUCUMBER_TAGS=@smoke cucumber-js --config cucumber.js",
+    "test:regression": "cross-env CUCUMBER_TAGS=@regression cucumber-js --config cucumber.js",
+    "test:flaky": "cross-env CUCUMBER_TAGS=@flaky RETRY=2 RETRY_TAG_FILTER=@flaky cucumber-js --config cucumber.js",
     "test:headed": "cross-env HEADLESS=false cucumber-js --config cucumber.js",
     "test:debug": "cross-env PWDEBUG=1 HEADLESS=false cucumber-js --config cucumber.js",
-    "report": "ts-node src/utils/generate-report.ts",
-    "clean:reports": "rimraf reports screenshots videos traces test-results",
-    "typecheck": "tsc --noEmit"
+    "test:unit": "vitest run",
+    "report": "npm run report:cucumber && npm run report:allure",
+    "report:cucumber": "ts-node --files src/utils/generate-report.ts",
+    "report:allure": "cross-env ALLURE_NO_ANALYTICS=1 allure generate reports/allure-results --clean -o reports/allure-report",
+    "report:allure:open": "allure open reports/allure-report",
+    "clean:reports": "rimraf reports/* screenshots/* videos/* traces/* test-results allure-results",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "validate": "npm run typecheck && npm run lint && npm run format:check && npm run test:unit"
   },
   "keywords": [
     "playwright",
@@ -26,13 +40,23 @@
   "license": "MIT",
   "devDependencies": {
     "@cucumber/cucumber": "^10.9.0",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.45.3",
     "@types/node": "^20.14.10",
+    "allure-commandline": "^2.43.0",
+    "allure-cucumberjs": "^3.10.2",
     "cross-env": "^7.0.3",
-    "multiple-cucumber-html-reporter": "^3.8.0",
+    "dotenv": "^17.4.2",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "multiple-cucumber-html-reporter": "3.8.0",
     "playwright": "^1.45.3",
+    "prettier": "^3.9.4",
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.62.1",
+    "vitest": "^4.1.9",
+    "zod": "^4.4.3"
   }
 }
