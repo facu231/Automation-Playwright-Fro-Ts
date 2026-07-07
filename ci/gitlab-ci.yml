@@ -1,0 +1,27 @@
+image: node:20
+
+stages:
+  - test
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - node_modules/
+
+e2e:
+  stage: test
+  before_script:
+    - npm install
+    - npx playwright install --with-deps
+  script:
+    - TEST_ENV=qa HEADLESS=true TRACE=true VIDEO=true npm test
+  after_script:
+    - npm run report || true
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - reports/
+      - screenshots/
+      - videos/
+      - traces/
