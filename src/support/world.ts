@@ -17,20 +17,28 @@ export class CustomWorld extends World {
   screenshotManager?: ScreenshotManager;
   reporterManager?: ReporterManager;
   scenarioName = 'unknown-scenario';
+  scenarioExecutionId = 'unknown-execution';
 
   constructor(options: IWorldOptions) {
     super(options);
     this.config = ConfigManager.load();
   }
 
-  init(browser: Browser, context: BrowserContext, page: Page, scenarioName: string): void {
+  init(
+    browser: Browser,
+    context: BrowserContext,
+    page: Page,
+    scenarioName: string,
+    scenarioExecutionId: string
+  ): void {
     this.browser = browser;
     this.context = context;
     this.page = page;
     this.scenarioName = scenarioName;
+    this.scenarioExecutionId = scenarioExecutionId;
     this.pages = new PageFactory(page, this.config);
-    this.screenshotManager = new ScreenshotManager(page, scenarioName);
-    this.reporterManager = new ReporterManager(scenarioName);
+    this.screenshotManager = new ScreenshotManager(page, scenarioName, scenarioExecutionId);
+    this.reporterManager = new ReporterManager(scenarioName, scenarioExecutionId);
   }
 
   getPage(): Page {

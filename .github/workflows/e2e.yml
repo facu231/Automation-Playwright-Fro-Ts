@@ -10,46 +10,248 @@ on:
         description: Cucumber tag expression
         required: false
         default: '@smoke and not @wip'
+        type: string
+      parallel:
+        description: Cucumber workers per job
+        required: false
+        default: '2'
+        type: string
+      enable_self_hosted_fallback:
+        description: Run a self-hosted fallback only when hosted setup fails
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  TEST_ENV: qa
+  HEADLESS: true
+  TRACE: true
+  VIDEO: true
+  RETRY: 1
+  RETRY_TAG_FILTER: '@flaky'
 
 jobs:
-  e2e:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  e2e-primary:
+    name: ${{ matrix.os }} / ${{ matrix.browser }} / ${{ matrix.suite }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
-        browser: [chromium, firefox, webkit]
+        include:
+          - os: ubuntu-latest
+            browser: chrome
+            suite: smoke
+            tags: '@smoke and not @wip'
+          - os: ubuntu-latest
+            browser: msedge
+            suite: smoke
+            tags: '@smoke and not @wip'
+          - os: ubuntu-latest
+            browser: firefox
+            suite: smoke
+            tags: '@smoke and not @wip'
+          - os: windows-latest
+            browser: chrome
+            suite: smoke
+            tags: '@smoke and not @wip'
+          - os: macos-latest
+            browser: chrome
+            suite: smoke
+            tags: '@smoke and not @wip'
 
     env:
-      TEST_ENV: qa
       BROWSER: ${{ matrix.browser }}
-      HEADLESS: true
-      TRACE: true
-      VIDEO: true
-      RETRY: 1
-      RETRY_TAG_FILTER: '@flaky'
-      CUCUMBER_TAGS: ${{ github.event.inputs.tags || '@smoke and not @wip' }}
+      CUCUMBER_TAGS: ${{ github.event.inputs.tags || matrix.tags }}
+      PARALLEL: ${{ github.event.inputs.parallel || '2' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Log runner context
+        run: |
+          echo "runner.name=${{ runner.name }}"
+          echo "runner.os=${{ runner.os }}"
+          echo "runner.arch=${{ runner.arch }}"
+          echo "matrix.os=${{ matrix.os }}"
+          echo "browser=${{ matrix.browser }}"
+          echo "suite=${{ matrix.suite }}"
+          echo "tags=$CUCUMBER_TAGS"
+          echo "parallel=$PARALLEL"
+
+      - name: Setup framework
+        id: setup
+        continue-on-error: true
+        uses: ./.github/actions/setup-framework
         with:
-          version: 11.7.0
+          browser: ${{ matrix.browser }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Validate framework
+        id: validate
+        if: steps.setup.outcome == 'success'
+        continue-on-error: true
+        run: pnpm run validate
+
+      - name: Run tests
+        id: tests
+        if: steps.setup.outcome == 'success' && steps.validate.outcome == 'success'
+        continue-on-error: true
+        run: pnpm run test:ci
+
+      - name: Generate reports
+        if: always() && steps.setup.outcome == 'success' && steps.tests.outcome != 'skipped'
+        continue-on-error: true
+        run: pnpm run report
+
+      - name: Classify result
+        id: classify
+        if: always()
+        run: |
+          failure_type="success"
+
+          if [[ "${{ steps.setup.outcome }}" == "failure" ]]; then
+            failure_type="infra"
+          elif [[ "${{ steps.validate.outcome }}" == "failure" ]]; then
+            failure_type="quality"
+          elif [[ "${{ steps.tests.outcome }}" == "failure" ]]; then
+            failure_type="test"
+          fi
+
+          mkdir -p runner-classification
+          classification_file="runner-classification/${{ matrix.os }}-${{ matrix.browser }}-${{ matrix.suite }}.env"
+          {
+            echo "runner=${{ runner.name }}"
+            echo "runner_os=${{ runner.os }}"
+            echo "runner_arch=${{ runner.arch }}"
+            echo "target_os=${{ matrix.os }}"
+            echo "browser=${{ matrix.browser }}"
+            echo "suite=${{ matrix.suite }}"
+            echo "failure_type=$failure_type"
+          } > "$classification_file"
+
+          echo "failure_type=$failure_type" >> "$GITHUB_OUTPUT"
+          echo "failure_type=$failure_type"
+
+      - name: Upload runner classification
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          node-version-file: .node-version
-          cache: pnpm
+          name: runner-classification-${{ matrix.os }}-${{ matrix.browser }}-${{ matrix.suite }}
+          path: runner-classification/
+          if-no-files-found: ignore
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-${{ matrix.os }}-${{ matrix.browser }}-${{ matrix.suite }}
+          path: |
+            reports/
+            screenshots/
+            videos/
+            traces/
+          if-no-files-found: ignore
 
-      - name: Install Playwright browser
-        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+      - name: Fail on classified failure
+        if: steps.classify.outputs.failure_type != 'success'
+        run: exit 1
+
+  fallback-plan:
+    name: fallback plan
+    runs-on: ubuntu-latest
+    needs: e2e-primary
+    if: always()
+    outputs:
+      should_run: ${{ steps.plan.outputs.should_run }}
+      reason: ${{ steps.plan.outputs.reason }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Download runner classifications
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: runner-classification-*
+          path: runner-classifications
+          merge-multiple: true
+
+      - name: Decide fallback
+        id: plan
+        env:
+          FALLBACK_ENABLED: ${{ github.event.inputs.enable_self_hosted_fallback || 'false' }}
+          PRIMARY_RESULT: ${{ needs.e2e-primary.result }}
+        run: |
+          should_run="false"
+          reason="fallback disabled or not needed"
+
+          if [[ "$FALLBACK_ENABLED" == "true" && "$PRIMARY_RESULT" == "failure" ]]; then
+            if grep -R "failure_type=infra" runner-classifications >/dev/null 2>&1; then
+              should_run="true"
+              reason="hosted runner setup failed before tests"
+            else
+              reason="primary failure was not classified as infrastructure"
+            fi
+          fi
+
+          echo "should_run=$should_run" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+          echo "Fallback: $should_run ($reason)"
+
+  e2e-self-hosted-fallback:
+    name: self-hosted fallback / ${{ matrix.browser }} / ${{ matrix.suite }}
+    runs-on: [self-hosted, automation, playwright]
+    needs: fallback-plan
+    if: needs.fallback-plan.outputs.should_run == 'true'
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - browser: chrome
+            suite: smoke
+            tags: '@smoke and not @wip'
+          - browser: msedge
+            suite: smoke
+            tags: '@smoke and not @wip'
+          - browser: firefox
+            suite: smoke
+            tags: '@smoke and not @wip'
+
+    env:
+      BROWSER: ${{ matrix.browser }}
+      CUCUMBER_TAGS: ${{ github.event.inputs.tags || matrix.tags }}
+      PARALLEL: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log fallback runner context
+        run: |
+          echo "fallback.reason=${{ needs.fallback-plan.outputs.reason }}"
+          echo "runner.name=${{ runner.name }}"
+          echo "runner.os=${{ runner.os }}"
+          echo "runner.arch=${{ runner.arch }}"
+          echo "browser=${{ matrix.browser }}"
+          echo "suite=${{ matrix.suite }}"
+
+      - name: Setup framework
+        uses: ./.github/actions/setup-framework
+        with:
+          browser: ${{ matrix.browser }}
 
       - name: Validate framework
         run: pnpm run validate
@@ -59,15 +261,17 @@ jobs:
 
       - name: Generate reports
         if: always()
+        continue-on-error: true
         run: pnpm run report
 
-      - name: Upload artifacts
+      - name: Upload fallback artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-artifacts-${{ matrix.browser }}
+          name: e2e-fallback-artifacts-${{ matrix.browser }}-${{ matrix.suite }}
           path: |
             reports/
             screenshots/
             videos/
             traces/
+          if-no-files-found: ignore

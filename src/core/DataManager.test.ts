@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DataManager } from './DataManager';
 
 interface TestUser {
@@ -12,5 +12,11 @@ describe('DataManager', () => {
 
     expect(user.username).toBe('standard_user');
     expect(user.password).toBe('secret_sauce');
+  });
+
+  it('returns falsy records when the key exists', () => {
+    vi.spyOn(DataManager, 'readJson').mockReturnValue({ disabled: false });
+
+    expect(DataManager.getRecord<boolean>('flags.json', 'disabled')).toBe(false);
   });
 });

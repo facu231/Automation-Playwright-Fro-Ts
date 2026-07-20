@@ -1,22 +1,24 @@
-import type { Locator, Page } from 'playwright';
+import type { Page } from 'playwright';
+import { resolveLocator } from './locator';
+import type { LocatorTarget } from './locator';
 
 export class WaitManager {
   constructor(private readonly page: Page) {}
 
-  async forVisible(target: Locator | string, timeout?: number): Promise<void> {
-    await this.locator(target).waitFor({ state: 'visible', timeout });
+  async forVisible(target: LocatorTarget, timeout?: number): Promise<void> {
+    await resolveLocator(this.page, target).waitFor({ state: 'visible', timeout });
   }
 
-  async forHidden(target: Locator | string, timeout?: number): Promise<void> {
-    await this.locator(target).waitFor({ state: 'hidden', timeout });
+  async forHidden(target: LocatorTarget, timeout?: number): Promise<void> {
+    await resolveLocator(this.page, target).waitFor({ state: 'hidden', timeout });
   }
 
-  async forAttached(target: Locator | string, timeout?: number): Promise<void> {
-    await this.locator(target).waitFor({ state: 'attached', timeout });
+  async forAttached(target: LocatorTarget, timeout?: number): Promise<void> {
+    await resolveLocator(this.page, target).waitFor({ state: 'attached', timeout });
   }
 
-  async forDetached(target: Locator | string, timeout?: number): Promise<void> {
-    await this.locator(target).waitFor({ state: 'detached', timeout });
+  async forDetached(target: LocatorTarget, timeout?: number): Promise<void> {
+    await resolveLocator(this.page, target).waitFor({ state: 'detached', timeout });
   }
 
   async forLoadState(state: 'load' | 'domcontentloaded' | 'networkidle' = 'domcontentloaded'): Promise<void> {
@@ -29,9 +31,5 @@ export class WaitManager {
       fragment,
       { timeout }
     );
-  }
-
-  private locator(target: Locator | string): Locator {
-    return typeof target === 'string' ? this.page.locator(target).first() : target.first();
   }
 }

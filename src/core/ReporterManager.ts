@@ -22,7 +22,10 @@ export class ReporterManager {
   private readonly logs: ScenarioLogEntry[] = [];
   private readonly evidence: EvidenceEntry[] = [];
 
-  constructor(private readonly scenarioName: string) {}
+  constructor(
+    private readonly scenarioName: string,
+    private readonly executionId = PathManager.sanitize(scenarioName)
+  ) {}
 
   info(message: string): void {
     this.log('info', message);
@@ -54,9 +57,15 @@ export class ReporterManager {
   }
 
   flush(): string {
-    const filePath = PathManager.scenarioFile('reports', this.scenarioName, 'scenario-evidence.json');
+    const filePath = PathManager.scenarioRunFile(
+      'reports',
+      this.scenarioName,
+      this.executionId,
+      'scenario-evidence.json'
+    );
     const payload = {
       scenario: this.scenarioName,
+      executionId: this.executionId,
       status: this.status,
       generatedAt: new Date().toISOString(),
       logs: this.logs,

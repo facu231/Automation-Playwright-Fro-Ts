@@ -31,4 +31,14 @@ describe('ConfigManager', () => {
 
     expect(() => ConfigManager.load(true)).toThrow(/Invalid environment configuration/);
   });
+
+  it('normalizes Edge browser aliases for Playwright channel selection', () => {
+    delete process.env.BASE_URL;
+    process.env.TEST_ENV = 'qa';
+    process.env.BROWSER = 'edge';
+
+    const config = ConfigManager.load(true);
+
+    expect(config.browser).toBe('msedge');
+  });
 });

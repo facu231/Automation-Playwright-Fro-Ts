@@ -1,7 +1,8 @@
 import { After, AfterAll, AfterStep, Before, BeforeAll, Status } from '@cucumber/cucumber';
 import type { ITestCaseHookParameter, ITestStepHookParameter } from '@cucumber/cucumber';
 import { chromium, firefox, webkit } from 'playwright';
-import type { Browser, BrowserType, Page } from 'playwright';
+import type { Browser, BrowserType, LaunchOptions, Page } from 'playwright';
+import type { BrowserChannel, SupportedBrowser } from '../config/types';
 import { ConfigManager } from '../core/ConfigManager';
 import { PathManager } from '../core/PathManager';
 import type { CustomWorld } from '../support/world';
@@ -10,20 +11,28 @@ let browser: Browser;
 
 BeforeAll(async function () {
   const config = ConfigManager.load(true);
-  const browserType: BrowserType = { chromium, firefox, webkit }[config.browser];
-
-  PathManager.ensureBaseFolders();
-  browser = await browserType.launch({
+  const browserProfile = resolveBrowserProfile(config.browser);
+  const launchOptions: LaunchOptions = {
     headless: config.headless,
     slowMo: config.slowMo,
     ...config.launchOptions
-  });
+  };
+
+  if (browserProfile.channel) {
+    launchOptions.channel = browserProfile.channel;
+  }
+
+  PathManager.ensureBaseFolders();
+  browser = await browserProfile.browserType.launch(launchOptions);
 });
 
 Before(async function (this: CustomWorld, scenario: ITestCaseHookParameter) {
   const config = ConfigManager.load();
   const scenarioName = scenario.pickle.name;
-  const videoDir = config.video ? PathManager.forScenario('videos', scenarioName) : undefined;
+  const scenarioExecutionId = PathManager.executionId(scenarioName, config.browser);
+  const videoDir = config.video
+    ? PathManager.forScenarioRun('videos', scenarioName, scenarioExecutionId)
+    : undefined;
 
   const context = await browser.newContext({
     viewport: config.viewport,
@@ -39,9 +48,10 @@ Before(async function (this: CustomWorld, scenario: ITestCaseHookParameter) {
   page.setDefaultTimeout(config.actionTimeout);
   page.setDefaultNavigationTimeout(config.navigationTimeout);
 
-  this.init(browser, context, page, scenarioName);
+  this.init(browser, context, page, scenarioName, scenarioExecutionId);
   registerDiagnostics(this, page);
   this.reporterManager?.info(`Scenario started: ${scenarioName}`);
+  this.reporterManager?.info(`Execution id: ${scenarioExecutionId}`);
 });
 
 AfterStep(async function (this: CustomWorld, hookParameter: ITestStepHookParameter) {
@@ -77,9 +87,10 @@ After(async function (this: CustomWorld, scenario: ITestCaseHookParameter) {
   }
 
   if (this.context && this.config.trace) {
-    const tracePath = PathManager.scenarioFile(
+    const tracePath = PathManager.scenarioRunFile(
       'traces',
       this.scenarioName,
+      this.scenarioExecutionId,
       `${PathManager.timestamp()}-trace.zip`
     );
     await this.context.tracing.stop({ path: tracePath });
@@ -140,4 +151,23 @@ function registerDiagnostics(world: CustomWorld, page: Page): void {
       world.reporterManager?.warn(`[response:${response.status()}] ${response.url()}`);
     }
   });
+}
+
+function resolveBrowserProfile(browserName: SupportedBrowser): {
+  browserType: BrowserType;
+  channel?: BrowserChannel;
+} {
+  if (browserName === 'firefox') {
+    return { browserType: firefox };
+  }
+
+  if (browserName === 'webkit') {
+    return { browserType: webkit };
+  }
+
+  if (browserName === 'chrome' || browserName === 'msedge') {
+    return { browserType: chromium, channel: browserName };
+  }
+
+  return { browserType: chromium };
 }

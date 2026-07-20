@@ -16,7 +16,7 @@ export class DataManager {
     const records = this.readJson<Record<string, T>>(fileName);
     const record = records[recordKey];
 
-    if (!record) {
+    if (!Object.hasOwn(records, recordKey)) {
       throw new Error(`Record "${recordKey}" was not found in ${fileName}`);
     }
 

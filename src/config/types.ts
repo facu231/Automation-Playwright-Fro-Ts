@@ -1,7 +1,9 @@
 import type { BrowserContextOptions, LaunchOptions } from 'playwright';
 
 export type SupportedEnvironment = 'local' | 'dev' | 'qa' | 'staging' | 'prod';
-export type SupportedBrowser = 'chromium' | 'firefox' | 'webkit';
+export type SupportedBrowser = 'chromium' | 'chrome' | 'msedge' | 'firefox' | 'webkit';
+export type BrowserChannel = 'chrome' | 'msedge';
+export type BrowserEngine = 'chromium' | 'firefox' | 'webkit';
 
 export interface EnvironmentCredentials {
   username: string;

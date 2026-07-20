@@ -1,7 +1,11 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig } from '@playwright/test';
 import { ConfigManager } from './src/core/ConfigManager';
 
 const envConfig = ConfigManager.load();
+const browserName =
+  envConfig.browser === 'firefox' || envConfig.browser === 'webkit' ? envConfig.browser : 'chromium';
+const channel =
+  envConfig.browser === 'chrome' || envConfig.browser === 'msedge' ? envConfig.browser : undefined;
 
 export default defineConfig({
   timeout: envConfig.timeout,
@@ -21,7 +25,10 @@ export default defineConfig({
   projects: [
     {
       name: envConfig.browser,
-      use: devices['Desktop Chrome']
+      use: {
+        browserName,
+        channel
+      }
     }
   ],
   reporter: [

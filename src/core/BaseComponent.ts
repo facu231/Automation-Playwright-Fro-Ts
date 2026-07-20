@@ -3,6 +3,8 @@ import { ConfigManager } from './ConfigManager';
 import { ElementActions } from './ElementActions';
 import { ElementAssertions } from './ElementAssertions';
 import { HighlightManager } from './HighlightManager';
+import { resolveLocator } from './locator';
+import type { LocatorTarget } from './locator';
 
 export abstract class BaseComponent {
   protected readonly root: Locator;
@@ -11,9 +13,9 @@ export abstract class BaseComponent {
 
   constructor(
     protected readonly page: Page,
-    root: Locator | string
+    root: LocatorTarget
   ) {
-    this.root = typeof root === 'string' ? page.locator(root).first() : root.first();
+    this.root = resolveLocator(page, root);
     const highlight = new HighlightManager(ConfigManager.load().highlight);
     this.actions = new ElementActions(page, highlight);
     this.assertions = new ElementAssertions(page);

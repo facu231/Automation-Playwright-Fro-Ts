@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+const browserAliases = ['chromium', 'chrome', 'edge', 'msedge', 'firefox', 'webkit'] as const;
+
 const emptyToUndefined = (value: unknown): unknown =>
   typeof value === 'string' && value.trim() === '' ? undefined : value;
 
@@ -42,7 +44,10 @@ const browserName = z.preprocess(
 
     return value.toLowerCase();
   },
-  z.enum(['chromium', 'firefox', 'webkit']).optional()
+  z
+    .enum(browserAliases)
+    .optional()
+    .transform((value) => (value === 'edge' ? 'msedge' : value))
 );
 
 export const runtimeEnvSchema = z.object({

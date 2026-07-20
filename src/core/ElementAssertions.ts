@@ -1,43 +1,41 @@
 import { expect } from '@playwright/test';
-import type { Locator, Page } from 'playwright';
+import type { Page } from 'playwright';
+import { resolveLocator } from './locator';
+import type { LocatorTarget } from './locator';
 
 export class ElementAssertions {
   constructor(private readonly page: Page) {}
 
-  async assertVisible(target: Locator | string, timeout?: number): Promise<void> {
-    await expect(this.locator(target)).toBeVisible({ timeout });
+  async assertVisible(target: LocatorTarget, timeout?: number): Promise<void> {
+    await expect(resolveLocator(this.page, target)).toBeVisible({ timeout });
   }
 
-  async assertHidden(target: Locator | string, timeout?: number): Promise<void> {
-    await expect(this.locator(target)).toBeHidden({ timeout });
+  async assertHidden(target: LocatorTarget, timeout?: number): Promise<void> {
+    await expect(resolveLocator(this.page, target)).toBeHidden({ timeout });
   }
 
-  async assertEnabled(target: Locator | string, timeout?: number): Promise<void> {
-    await expect(this.locator(target)).toBeEnabled({ timeout });
+  async assertEnabled(target: LocatorTarget, timeout?: number): Promise<void> {
+    await expect(resolveLocator(this.page, target)).toBeEnabled({ timeout });
   }
 
-  async assertDisabled(target: Locator | string, timeout?: number): Promise<void> {
-    await expect(this.locator(target)).toBeDisabled({ timeout });
+  async assertDisabled(target: LocatorTarget, timeout?: number): Promise<void> {
+    await expect(resolveLocator(this.page, target)).toBeDisabled({ timeout });
   }
 
-  async assertTextContains(target: Locator | string, expectedText: string, timeout?: number): Promise<void> {
-    await expect(this.locator(target)).toContainText(expectedText, { timeout });
+  async assertTextContains(target: LocatorTarget, expectedText: string, timeout?: number): Promise<void> {
+    await expect(resolveLocator(this.page, target)).toContainText(expectedText, { timeout });
   }
 
-  async assertTextEquals(target: Locator | string, expectedText: string, timeout?: number): Promise<void> {
-    await expect(this.locator(target)).toHaveText(expectedText, { timeout });
+  async assertTextEquals(target: LocatorTarget, expectedText: string, timeout?: number): Promise<void> {
+    await expect(resolveLocator(this.page, target)).toHaveText(expectedText, { timeout });
   }
 
-  async assertElementExists(target: Locator | string, timeout?: number): Promise<void> {
-    await expect(this.locator(target)).toBeAttached({ timeout });
+  async assertElementExists(target: LocatorTarget, timeout?: number): Promise<void> {
+    await expect(resolveLocator(this.page, target)).toBeAttached({ timeout });
   }
 
   async assertUrlContains(expectedFragment: string, timeout?: number): Promise<void> {
     await expect(this.page).toHaveURL(new RegExp(this.escapeRegExp(expectedFragment)), { timeout });
-  }
-
-  private locator(target: Locator | string): Locator {
-    return typeof target === 'string' ? this.page.locator(target).first() : target.first();
   }
 
   private escapeRegExp(value: string): string {

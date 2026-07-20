@@ -3,7 +3,7 @@ import type { EnvironmentConfig } from '../config/types';
 import { LoginPage } from './LoginPage';
 
 export class PageFactory {
-  private readonly instances = new Map<string, unknown>();
+  private loginPage?: LoginPage;
 
   constructor(
     private readonly page: Page,
@@ -11,14 +11,10 @@ export class PageFactory {
   ) {}
 
   login(): LoginPage {
-    return this.getOrCreate('login', () => new LoginPage(this.page, this.config));
-  }
-
-  getOrCreate<T>(key: string, factory: () => T): T {
-    if (!this.instances.has(key)) {
-      this.instances.set(key, factory());
+    if (!this.loginPage) {
+      this.loginPage = new LoginPage(this.page, this.config);
     }
 
-    return this.instances.get(key) as T;
+    return this.loginPage;
   }
 }

@@ -1,10 +1,11 @@
+import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
 
-export type ArtifactRoot = 'reports' | 'screenshots' | 'videos' | 'traces' | 'data';
+export type ArtifactRoot = 'reports' | 'screenshots' | 'videos' | 'traces';
 
 export class PathManager {
-  static readonly artifactRoots: ArtifactRoot[] = ['reports', 'screenshots', 'videos', 'traces', 'data'];
+  static readonly artifactRoots: ArtifactRoot[] = ['reports', 'screenshots', 'videos', 'traces'];
 
   static get projectRoot(): string {
     return process.cwd();
@@ -40,6 +41,38 @@ export class PathManager {
 
   static scenarioFile(folder: ArtifactRoot, scenarioName: string, fileName: string): string {
     return path.join(this.forScenario(folder, scenarioName), fileName);
+  }
+
+  static executionId(scenarioName: string, discriminator?: string): string {
+    const parts = [
+      this.sanitize(scenarioName),
+      discriminator ? this.sanitize(discriminator) : undefined,
+      process.pid,
+      this.timestamp(),
+      randomUUID().slice(0, 8)
+    ].filter(Boolean);
+
+    return parts.join('-');
+  }
+
+  static forScenarioRun(
+    folder: ArtifactRoot,
+    scenarioName: string,
+    executionId: string,
+    date = this.dateStamp()
+  ): string {
+    return this.ensureDir(
+      path.join(this.forScenario(folder, scenarioName, date), this.sanitize(executionId))
+    );
+  }
+
+  static scenarioRunFile(
+    folder: ArtifactRoot,
+    scenarioName: string,
+    executionId: string,
+    fileName: string
+  ): string {
+    return path.join(this.forScenarioRun(folder, scenarioName, executionId), fileName);
   }
 
   static cucumberJson(): string {

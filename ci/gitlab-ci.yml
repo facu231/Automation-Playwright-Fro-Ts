@@ -23,7 +23,7 @@ e2e:
   stage: test
   parallel:
     matrix:
-      - BROWSER: [chromium, firefox, webkit]
+      - BROWSER: [chrome, msedge, firefox]
   variables:
     TEST_ENV: qa
     HEADLESS: 'true'
@@ -33,7 +33,13 @@ e2e:
     RETRY_TAG_FILTER: '@flaky'
     CUCUMBER_TAGS: '@smoke and not @wip'
   script:
-    - pnpm exec playwright install --with-deps ${BROWSER}
+    - |
+      if [ "${BROWSER}" = "chrome" ] || [ "${BROWSER}" = "msedge" ]; then
+        pnpm exec playwright install-deps chromium
+      else
+        pnpm exec playwright install-deps ${BROWSER}
+      fi
+    - pnpm exec playwright install ${BROWSER}
     - pnpm run test:ci
   after_script:
     - pnpm run report || true

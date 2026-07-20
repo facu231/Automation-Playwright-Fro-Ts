@@ -36,7 +36,7 @@ pipeline {
         axes {
           axis {
             name 'BROWSER'
-            values 'chromium', 'firefox', 'webkit'
+            values 'chrome', 'msedge', 'firefox'
           }
         }
         stages {

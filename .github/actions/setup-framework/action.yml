@@ -1,0 +1,45 @@
+name: Setup automation framework
+description: Setup Node.js, pnpm, dependencies and the selected Playwright browser.
+
+inputs:
+  browser:
+    description: Playwright browser or branded browser channel to install.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .node-version
+
+    - name: Enable pnpm
+      shell: bash
+      run: |
+        corepack enable
+        corepack prepare pnpm@11.7.0 --activate
+        node --version
+        pnpm --version
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - name: Install Playwright system dependencies
+      shell: bash
+      run: |
+        browser="${{ inputs.browser }}"
+        deps_browser="$browser"
+
+        if [[ "$browser" == "chrome" || "$browser" == "msedge" ]]; then
+          deps_browser="chromium"
+        fi
+
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          pnpm exec playwright install-deps "$deps_browser"
+        fi
+
+    - name: Install Playwright browser
+      shell: bash
+      run: pnpm exec playwright install "${{ inputs.browser }}"

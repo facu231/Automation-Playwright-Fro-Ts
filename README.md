@@ -42,7 +42,7 @@ src/
   data/       Datos de prueba
   utils/      Utilidades
   paths/      Paths compartidos
-ci/           Ejemplos de pipelines
+ci/           Configuracion compartida de pipelines
 reports/      Reportes generados
 screenshots/  Evidencias PNG
 videos/       Videos de ejecucion
@@ -59,6 +59,10 @@ npm run test:dev
 npm run test:qa
 npm run test:smoke
 npm run test:regression
+npm run test:parallel
+npm run test:chrome
+npm run test:edge
+npm run test:firefox
 npm run test:flaky
 npm run test:headed
 npm run test:debug
@@ -80,7 +84,7 @@ Los ambientes disponibles son `local`, `dev`, `qa`, `staging` y `prod`. Se selec
 Variables utiles:
 
 - `BASE_URL`: URL base de la aplicacion
-- `BROWSER`: `chromium`, `firefox` o `webkit`
+- `BROWSER`: `chromium`, `chrome`, `msedge`, `firefox` o `webkit`
 - `HEADLESS`: `true` o `false`
 - `HIGHLIGHT`: resalta elementos antes de interactuar
 - `SCREENSHOT_ON_STEP`: captura evidencia por step
@@ -110,6 +114,32 @@ Ejemplos:
 npm run test:smoke
 cross-env CUCUMBER_TAGS="@regression and not @wip" npm test
 cross-env CUCUMBER_TAGS="@flaky" RETRY=2 RETRY_TAG_FILTER=@flaky npm test
+```
+
+## Paralelismo y browsers
+
+El paralelismo se controla con `PARALLEL`, que Cucumber usa como cantidad de workers:
+
+```bash
+cross-env PARALLEL=2 npm test
+npm run test:parallel
+```
+
+Cada escenario genera un `executionId` unico. Las evidencias quedan aisladas por ejecucion para evitar pisadas cuando hay workers paralelos, retries o matriz de browsers.
+
+Browsers soportados:
+
+```bash
+npm run test:chrome
+npm run test:edge
+npm run test:firefox
+cross-env BROWSER=chromium npm test
+```
+
+`chrome` y `msedge` usan los canales oficiales de Chromium de Playwright. Si no estan instalados localmente, ejecuta:
+
+```bash
+pnpm exec playwright install chrome msedge firefox
 ```
 
 ## Crear una feature
@@ -171,9 +201,9 @@ const user = DataManager.getRecord<TestUser>('users.json', 'validUser');
 
 ## Evidencias y reportes
 
-- Screenshots: `screenshots/<fecha>/<escenario>`
-- Videos: `videos/<fecha>/<escenario>`
-- Traces: `traces/<fecha>/<escenario>`
+- Screenshots: `screenshots/<fecha>/<escenario>/<executionId>`
+- Videos: `videos/<fecha>/<escenario>/<executionId>`
+- Traces: `traces/<fecha>/<escenario>/<executionId>`
 - JSON/HTML Cucumber: `reports/cucumber`
 - Reporte HTML agregado: `reports/html`
 - Allure results: `reports/allure-results`
@@ -199,15 +229,32 @@ Activa `HIGHLIGHT=true` para marcar visualmente los elementos antes de interactu
 
 ## CI/CD
 
-Incluye ejemplos para:
+Incluye pipelines para:
 
-- GitHub Actions: `.github/workflows/e2e.yml` y `ci/github-actions.yml`
-- GitLab CI: `.gitlab-ci.yml` y `ci/gitlab-ci.yml`
-- Jenkins: `Jenkinsfile` y `ci/Jenkinsfile`
+- GitHub Actions: `.github/workflows/e2e.yml`
+- GitLab CI: `.gitlab-ci.yml` incluye `ci/gitlab-ci.yml`
+- Jenkins: `Jenkinsfile`
 
 Los pipelines instalan dependencias, instalan browsers de Playwright, ejecutan tests y publican artifacts.
 
-GitHub Actions y Jenkins ejecutan matriz por browser: `chromium`, `firefox` y `webkit`.
+GitHub Actions ejecuta una matriz primaria pensada para cobertura util sin gastar minutos de mas:
+
+- Linux: `chrome`, `msedge`, `firefox`
+- Windows: `chrome`
+- macOS: `chrome`
+- Suite default: `@smoke and not @wip`
+
+La matriz se puede ampliar agregando combinaciones `os` x `browser` x `suite` en `.github/workflows/e2e.yml`. El nivel de paralelismo por job se controla desde `workflow_dispatch` con `parallel` o por defecto con `PARALLEL=2`.
+
+El workflow tambien incluye una contingencia opcional para self-hosted runners. No intenta cambiar de runner un job ya iniciado; usa un job separado `e2e-self-hosted-fallback` que solo corre si:
+
+- El workflow fue disparado manualmente con `enable_self_hosted_fallback=true`.
+- La ejecucion primaria fallo antes de correr pruebas, clasificada como `failure_type=infra`.
+- Existe un runner self-hosted disponible con labels `self-hosted`, `automation`, `playwright`.
+
+Fallos de validacion (`quality`) o de tests (`test`) no disparan el fallback. El fallback tiene un solo intento, `max-parallel: 1`, y registra el runner real en logs y artifacts.
+
+GitLab CI y Jenkins mantienen una matriz equivalente de browsers: `chrome`, `msedge` y `firefox`.
 
 ## Docker
 

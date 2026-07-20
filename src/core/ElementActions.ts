@@ -1,5 +1,7 @@
 import type { Locator, Page } from 'playwright';
 import { HighlightManager } from './HighlightManager';
+import { resolveLocator } from './locator';
+import type { LocatorTarget } from './locator';
 
 type SelectOptionValue = string | string[] | { value?: string; label?: string; index?: number };
 type FilePayload = { name: string; mimeType: string; buffer: Buffer };
@@ -11,66 +13,62 @@ export class ElementActions {
     private readonly highlightManager: HighlightManager
   ) {}
 
-  async click(target: Locator | string): Promise<void> {
-    const locator = this.locator(target);
+  async click(target: LocatorTarget): Promise<void> {
+    const locator = resolveLocator(this.page, target);
     await this.withHighlight(locator, () => locator.click());
   }
 
-  async doubleClick(target: Locator | string): Promise<void> {
-    const locator = this.locator(target);
+  async doubleClick(target: LocatorTarget): Promise<void> {
+    const locator = resolveLocator(this.page, target);
     await this.withHighlight(locator, () => locator.dblclick());
   }
 
-  async fill(target: Locator | string, value: string): Promise<void> {
-    const locator = this.locator(target);
+  async fill(target: LocatorTarget, value: string): Promise<void> {
+    const locator = resolveLocator(this.page, target);
     await this.withHighlight(locator, () => locator.fill(value));
   }
 
-  async clear(target: Locator | string): Promise<void> {
-    const locator = this.locator(target);
+  async clear(target: LocatorTarget): Promise<void> {
+    const locator = resolveLocator(this.page, target);
     await this.withHighlight(locator, () => locator.clear());
   }
 
-  async typeText(target: Locator | string, value: string, delay = 0): Promise<void> {
-    const locator = this.locator(target);
+  async typeText(target: LocatorTarget, value: string, delay = 0): Promise<void> {
+    const locator = resolveLocator(this.page, target);
     await this.withHighlight(locator, () => locator.type(value, { delay }));
   }
 
-  async pressKey(target: Locator | string, key: string): Promise<void> {
-    const locator = this.locator(target);
+  async pressKey(target: LocatorTarget, key: string): Promise<void> {
+    const locator = resolveLocator(this.page, target);
     await this.withHighlight(locator, () => locator.press(key));
   }
 
-  async selectOption(target: Locator | string, value: SelectOptionValue): Promise<void> {
-    const locator = this.locator(target);
+  async selectOption(target: LocatorTarget, value: SelectOptionValue): Promise<void> {
+    const locator = resolveLocator(this.page, target);
     await this.withHighlight(locator, () => locator.selectOption(value));
   }
 
-  async scrollToElement(target: Locator | string): Promise<void> {
-    const locator = this.locator(target);
+  async scrollToElement(target: LocatorTarget): Promise<void> {
+    const locator = resolveLocator(this.page, target);
     await locator.scrollIntoViewIfNeeded();
   }
 
-  async hover(target: Locator | string): Promise<void> {
-    const locator = this.locator(target);
+  async hover(target: LocatorTarget): Promise<void> {
+    const locator = resolveLocator(this.page, target);
     await this.withHighlight(locator, () => locator.hover());
   }
 
-  async getText(target: Locator | string): Promise<string> {
-    return (await this.locator(target).innerText()).trim();
+  async getText(target: LocatorTarget): Promise<string> {
+    return (await resolveLocator(this.page, target).innerText()).trim();
   }
 
-  async getAttribute(target: Locator | string, attributeName: string): Promise<string | null> {
-    return this.locator(target).getAttribute(attributeName);
+  async getAttribute(target: LocatorTarget, attributeName: string): Promise<string | null> {
+    return resolveLocator(this.page, target).getAttribute(attributeName);
   }
 
-  async uploadFile(target: Locator | string, files: UploadValue): Promise<void> {
-    const locator = this.locator(target);
+  async uploadFile(target: LocatorTarget, files: UploadValue): Promise<void> {
+    const locator = resolveLocator(this.page, target);
     await this.withHighlight(locator, () => locator.setInputFiles(files));
-  }
-
-  private locator(target: Locator | string): Locator {
-    return typeof target === 'string' ? this.page.locator(target).first() : target.first();
   }
 
   private async withHighlight(locator: Locator, action: () => Promise<unknown>): Promise<void> {
